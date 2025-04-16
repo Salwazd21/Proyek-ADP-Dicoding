@@ -30,53 +30,78 @@ def create_rfm_df(df):
     return rfm_df
 
 all_df = pd.read_csv("https://raw.githubusercontent.com/Salwazd21/Proyek-ADP-Dicoding/refs/heads/main/dashboard/all_df.csv")
+all_df["dteday"] = pd.to_datetime(all_df["dteday"])
 
-datetime_columns = ["dteday"]
-for column in datetime_columns:
-    all_df[column] = pd.to_datetime(all_df[column])
+with st.sidebar:
+    st.title("Analisis Data PYTHON")
+    st.image("https://raw.githubusercontent.com/Salwazd21/Progres-Belajar/main/logo.png")
+    st.write("Proyek analisis data Coding Camp 2025")
+    st.write("Salwa Zahrah Dasuki")
 
-persentase_bulanan_all = persentase_pengguna_sepeda_bulanan_all(all_df)
-puncak_all = puncak_penyewaan_sepeda_all(all_df)
-rfm_all = create_rfm_df(all_df)
+    filter_kategori = st.selectbox("Pilih Filter:", ["Semua", "Bulan", "Musim", "Cuaca"])
 
-st.title("Analisis Data PYTHON")
-st.image("https://raw.githubusercontent.com/Salwazd21/Progres-Belajar/main/logo.png")
-st.write("Proyek analisis data Coding Camp 2025")
-st.write("Salwa Zahrah Dasuki")
+    if filter_kategori == "Bulan":
+        all_df['bulan_str'] = all_df['dteday'].dt.strftime('%Y-%m')
+        bulan_options = sorted(all_df['bulan_str'].unique())
+        bulan_terpilih = st.multiselect("Pilih Bulan (bisa lebih dari satu):", bulan_options, default=bulan_options[:1])
+
+        if bulan_terpilih:
+            df_filtered = all_df[all_df['bulan_str'].isin(bulan_terpilih)]
+        else:
+            df_filtered = all_df.iloc[0:0]
+
+    elif filter_kategori == "Musim":
+        season_map = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
+        all_df['season_str'] = all_df['season'].map(season_map)
+        musim_terpilih = st.selectbox("Pilih Musim:", all_df['season_str'].unique())
+        df_filtered = all_df[all_df['season_str'] == musim_terpilih]
+
+    elif filter_kategori == "Cuaca":
+        cuaca_map = {
+            1: 'Clear, Few clouds',
+            2: 'Mist + Cloudy',
+            3: 'Light Snow or Rain',
+            4: 'Heavy Rain or Snow'
+        }
+        all_df['cuaca_str'] = all_df['weathersit'].map(cuaca_map)
+        cuaca_terpilih = st.selectbox("Pilih Cuaca:", all_df['cuaca_str'].unique())
+        df_filtered = all_df[all_df['cuaca_str'] == cuaca_terpilih]
+
+    else:
+        df_filtered = all_df.copy()
 
 st.header("Hasil Analisis Data")
-
-tab1, tab2, tab3 = st.tabs(["Persentase Pengguna Sepeda Bulanan", "Puncak Penyewaan Sepeda", "Analisis RFM"])
+tab1, tab2, tab3 = st.tabs(["Persentase Pengguna Sepeda", "Puncak Penyewaan Sepeda", "Analisis RFM"])
 
 with tab1:
-    st.subheader("Visualisasi Persentase Pengguna Sepeda Bulanan")
-    if not persentase_bulanan_all.empty:
-        persentase_bulanan_str = pd.DataFrame({
-            'bulan': persentase_bulanan_all.index.strftime('%Y-%m'),
-            'persentase': persentase_bulanan_all.values
+    st.subheader("Visualisasi Persentase Pengguna Sepeda")
+    persentase_bulanan = persentase_pengguna_sepeda_bulanan_all(df_filtered)
+    if not persentase_bulanan.empty:
+        df_plot = pd.DataFrame({
+            'bulan': persentase_bulanan.index.strftime('%Y-%m'),
+            'persentase': persentase_bulanan.values
         })
-        fig_persentase = px.line(persentase_bulanan_str, x='bulan', y='persentase', title="Tren Persentase Pengguna Sepeda Bulanan")
-        st.plotly_chart(fig_persentase)
+        fig = px.line(df_plot, x='bulan', y='persentase', title="Tren Persentase Pengguna Sepeda")
+        st.plotly_chart(fig)
     else:
         st.write("Tidak ada data untuk ditampilkan.")
 
 with tab2:
     st.subheader("Visualisasi Puncak Penyewaan Sepeda")
-    if not all_df.empty:
-        fig_puncak = px.bar(all_df.groupby("dteday")["cnt"].sum(), title="Jumlah Penyewaan Sepeda per Hari")
-        st.plotly_chart(fig_puncak)
+    if not df_filtered.empty:
+        df_harian = df_filtered.groupby("dteday")["cnt"].sum().reset_index()
+        fig = px.bar(df_harian, x="dteday", y="cnt", title="Jumlah Penyewaan Sepeda per Hari")
+        st.plotly_chart(fig)
     else:
         st.write("Tidak ada data untuk ditampilkan.")
 
 with tab3:
     st.subheader("Analisis RFM")
-    if not rfm_all.empty:
+    rfm = create_rfm_df(df_filtered)
+    if not rfm.empty:
         col1, col2, col3 = st.columns(3)
-        fig_rfm_recency = px.histogram(rfm_all, x="recency", title="Distribusi Recency")
-        col1.plotly_chart(fig_rfm_recency)
-        fig_rfm_frequency = px.histogram(rfm_all, x="frequency", title="Distribusi Frequency")
-        col2.plotly_chart(fig_rfm_frequency)
-        fig_rfm_monetary = px.histogram(rfm_all, x="monetary", title="Distribusi Monetary")
-        col3.plotly_chart(fig_rfm_monetary)
+        col1.plotly_chart(px.histogram(rfm, x="recency", title="Distribusi Recency"))
+        col2.plotly_chart(px.histogram(rfm, x="frequency", title="Distribusi Frequency"))
+        col3.plotly_chart(px.histogram(rfm, x="monetary", title="Distribusi Monetary"))
     else:
         st.write("Tidak ada data untuk ditampilkan.")
