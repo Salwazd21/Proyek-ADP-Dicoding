@@ -38,7 +38,7 @@ with st.sidebar:
     st.write("Proyek analisis data Coding Camp 2025")
     st.write("Salwa Zahrah Dasuki")
 
-    filter_kategori = st.selectbox("Pilih Filter:", ["Semua", "Bulan", "Musim", "Cuaca"])
+    filter_kategori = st.selectbox("Pilih Filter:", ["Semua", "Bulan", "Musim", "Cuaca","Tanggal"])
 
     if filter_kategori == "Bulan":
         all_df['bulan_str'] = all_df['dteday'].dt.strftime('%Y-%m')
@@ -66,12 +66,26 @@ with st.sidebar:
         all_df['cuaca_str'] = all_df['weathersit'].map(cuaca_map)
         cuaca_terpilih = st.selectbox("Pilih Cuaca:", all_df['cuaca_str'].unique())
         df_filtered = all_df[all_df['cuaca_str'] == cuaca_terpilih]
+        
+    elif filter_kategori == "Tanggal":
+        min_date = all_df['dteday'].min().date()
+        max_date = all_df['dteday'].max().date()
+        start_date, end_date = st.date_input(
+            "Pilih Rentang Tanggal:",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date
+            )
+        
+        if isinstance(start_date, tuple):
+            start_date, end_date = start_date
+        df_filtered = all_df[(all_df['dteday'].dt.date >= start_date) & (all_df['dteday'].dt.date <= end_date)]
 
     else:
         df_filtered = all_df.copy()
 
 st.header("Hasil Analisis Data")
-tab1, tab2, tab3 = st.tabs(["Persentase Pengguna Sepeda", "Puncak Penyewaan Sepeda", "Analisis RFM"])
+tab1, tab2, tab3 = st.tabs(["Persentase Pengguna Sepeda", "Puncak Penyewaan Sepeda", "Distribusi"])
 
 with tab1:
     st.subheader("Visualisasi Persentase Pengguna Sepeda")
@@ -96,12 +110,27 @@ with tab2:
         st.write("Tidak ada data untuk ditampilkan.")
 
 with tab3:
-    st.subheader("Analisis RFM")
-    rfm = create_rfm_df(df_filtered)
-    if not rfm.empty:
-        col1, col2, col3 = st.columns(3)
-        col1.plotly_chart(px.histogram(rfm, x="recency", title="Distribusi Recency"))
-        col2.plotly_chart(px.histogram(rfm, x="frequency", title="Distribusi Frequency"))
-        col3.plotly_chart(px.histogram(rfm, x="monetary", title="Distribusi Monetary"))
+    st.subheader("Distribusi Jumlah Penyewaan Sepeda")
+    if not df_filtered.empty:
+        col1, col2 = st.columns(2)
+
+        # Distribusi berdasarkan hari dalam seminggu
+        weekday_map = {0: 'Senin', 1: 'Selasa', 2: 'Rabu', 3: 'Kamis', 4: 'Jumat', 5: 'Sabtu', 6: 'Minggu'}
+        df_filtered['hari'] = df_filtered['weekday'].map(weekday_map)
+        df_by_hari = df_filtered.groupby('hari')['cnt'].sum().reindex(['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu']).reset_index()
+        fig_hari = px.bar(df_by_hari, x='hari', y='cnt', title='Distribusi Penyewaan Berdasarkan Hari')
+        col1.plotly_chart(fig_hari)
+
+        # Distribusi berdasarkan cuaca
+        cuaca_map = {
+            1: 'Clear, Few clouds',
+            2: 'Mist + Cloudy',
+            3: 'Light Snow or Rain',
+            4: 'Heavy Rain or Snow'
+        }
+        df_filtered['cuaca_str'] = df_filtered['weathersit'].map(cuaca_map)
+        df_by_cuaca = df_filtered.groupby('cuaca_str')['cnt'].sum().reset_index()
+        fig_cuaca = px.pie(df_by_cuaca, names='cuaca_str', values='cnt', title='Distribusi Penyewaan Berdasarkan Cuaca')
+        col2.plotly_chart(fig_cuaca)
     else:
         st.write("Tidak ada data untuk ditampilkan.")
