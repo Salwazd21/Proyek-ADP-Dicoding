@@ -85,18 +85,48 @@ with st.sidebar:
         df_filtered = all_df.copy()
 
 st.header("Hasil Analisis Data")
-tab1, tab2, tab3 = st.tabs(["Persentase Pengguna Sepeda", "Puncak Penyewaan Sepeda", "Distribusi"])
 
+st.subheader("Persentase Pengguna Sepeda - 6 Bulan Terakhir")
+all_df['bulan'] = all_df['dteday'].dt.to_period('M')
+six_months = all_df['bulan'].sort_values().unique()[-6:]
+df_last_6_months = all_df[all_df['bulan'].isin(six_months)]
+
+pengguna_casual_6m = df_last_6_months['casual'].sum()
+pengguna_registered_6m = df_last_6_months['registered'].sum()
+
+if pengguna_casual_6m + pengguna_registered_6m > 0:
+    fig_pie_6_months = px.pie(
+        names=['Casual', 'Registered'],
+        values=[pengguna_casual_6m, pengguna_registered_6m],
+        title='Persentase Pengguna Sepeda (6 Bulan Terakhir)'
+    )
+    st.plotly_chart(fig_pie_6_months)
+else:
+    st.write("Tidak ada data untuk ditampilkan dalam 6 bulan terakhir.")
+
+st.subheader("Puncak Penyewaan Sepeda - 1 Tahun Terakhir")
+df_last_year = all_df[all_df['dteday'] >= all_df['dteday'].max() - pd.DateOffset(years=1)]
+df_harian_last_year = df_last_year.groupby("dteday")["cnt"].sum().reset_index()
+puncak_penyewaan = df_harian_last_year['cnt'].max()
+fig_line_year = px.line(df_harian_last_year, x="dteday", y="cnt", title="Penyewaan Sepeda per Hari (1 Tahun Terakhir)")
+
+st.write(f"Puncak Penyewaan Sepeda: {puncak_penyewaan} pada {df_harian_last_year.loc[df_harian_last_year['cnt'] == puncak_penyewaan, 'dteday'].values[0]}")
+st.plotly_chart(fig_line_year)
+
+tab1, tab2, tab3 = st.tabs(["Persentase Pengguna Sepeda", "Puncak Penyewaan Sepeda", "Distribusi"])
 with tab1:
     st.subheader("Visualisasi Persentase Pengguna Sepeda")
-    persentase_bulanan = persentase_pengguna_sepeda_bulanan_all(df_filtered)
-    if not persentase_bulanan.empty:
-        df_plot = pd.DataFrame({
-            'bulan': persentase_bulanan.index.strftime('%Y-%m'),
-            'persentase': persentase_bulanan.values
-        })
-        fig = px.line(df_plot, x='bulan', y='persentase', title="Tren Persentase Pengguna Sepeda")
-        st.plotly_chart(fig)
+
+    pengguna_casual = df_filtered['casual'].sum()
+    pengguna_registered = df_filtered['registered'].sum()
+
+    if pengguna_casual + pengguna_registered > 0:
+        fig_pie = px.pie(
+            names=['Casual', 'Registered'],
+            values=[pengguna_casual, pengguna_registered],
+            title='Persentase Pengguna Sepeda: Casual vs Registered'
+        )
+        st.plotly_chart(fig_pie)
     else:
         st.write("Tidak ada data untuk ditampilkan.")
 
@@ -104,7 +134,7 @@ with tab2:
     st.subheader("Visualisasi Puncak Penyewaan Sepeda")
     if not df_filtered.empty:
         df_harian = df_filtered.groupby("dteday")["cnt"].sum().reset_index()
-        fig = px.bar(df_harian, x="dteday", y="cnt", title="Jumlah Penyewaan Sepeda per Hari")
+        fig = px.line(df_harian, x="dteday", y="cnt", title="Jumlah Penyewaan Sepeda per Hari")
         st.plotly_chart(fig)
     else:
         st.write("Tidak ada data untuk ditampilkan.")
@@ -114,14 +144,12 @@ with tab3:
     if not df_filtered.empty:
         col1, col2 = st.columns(2)
 
-        # Distribusi berdasarkan hari dalam seminggu
         weekday_map = {0: 'Senin', 1: 'Selasa', 2: 'Rabu', 3: 'Kamis', 4: 'Jumat', 5: 'Sabtu', 6: 'Minggu'}
         df_filtered['hari'] = df_filtered['weekday'].map(weekday_map)
         df_by_hari = df_filtered.groupby('hari')['cnt'].sum().reindex(['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu']).reset_index()
         fig_hari = px.bar(df_by_hari, x='hari', y='cnt', title='Distribusi Penyewaan Berdasarkan Hari')
         col1.plotly_chart(fig_hari)
 
-        # Distribusi berdasarkan cuaca
         cuaca_map = {
             1: 'Clear, Few clouds',
             2: 'Mist + Cloudy',
